@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"D:\\\\python3__env\\\\bt-fit\\\\Scripts\\\\python.exe\" -m pip list)",
+      "Bash(\"D:\\\\python3__env\\\\bt-fit\\\\Scripts\\\\python.exe\" -m pip install flask flask-cors flask-sqlalchemy)",
+      "Bash(\"D:\\\\python3__env\\\\bt-fit\\\\Scripts\\\\python.exe\" -m flask --app wsgi init-db)",
+      "Bash(\"D:\\\\python3__env\\\\bt-fit\\\\Scripts\\\\python.exe\" -m flask --app wsgi run --port 5000)",
+      "Bash(curl -s http://127.0.0.1:5000/health)",
+      "Bash(curl -s -X POST http://127.0.0.1:5000/api/users -H \"Content-Type: application/json\" -d '{\"username\":\"alice\",\"email\":\"alice@example.com\"}')",
+      "Bash(curl -s http://127.0.0.1:5000/api/users)"
+    ]
+  }
+}

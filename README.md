@@ -1,66 +1,239 @@
-项目结构
+# BT-Fit Backend
 
-  bt-fit-backend/
-  ├── app/
-  │   ├── __init__.py      # 应用工厂 (create_app)
-  │   ├── config.py        # 多环境配置（dev/test/prod，SQLite 存放在 data/）
-  │   ├── extensions.py    # db, CORS 扩展实例
-  │   ├── models.py        # User 模型
-  │   ├── routes.py        # 蓝图路由（含 RESTful 用户 CRUD）
-  │   └── cli.py           # flask init-db 命令
-  ├── data/                # SQLite 数据库目录（自动创建）
-  ├── wsgi.py              # 入口：python wsgi.py
-  ├── requirements.txt     # flask 3.1.3 / flask-cors 6.0.5 / flask-sqlalchemy 3.1.1
-  ├── .env.example
-  └── .gitignore
+基于 **Flask** 的后端 API 服务，采用应用工厂（Application Factory）模式组织代码，提供用户管理相关的 RESTful 接口。
 
-  已验证的端点
+## 技术栈
 
-  ┌────────────┬─────────────────┬────────────────────────────┐
-  │    方法    │      路径       │            说明            │
-  ├────────────┼─────────────────┼────────────────────────────┤
-  │ GET        │ /health         │ 健康检查                   │
-  虚拟环境（D:\python3__env\bt-fit），并且端点已通过实际运行验证。
+| 组件 | 版本 | 说明 |
+|------|------|------|
+| Python | 3.14+ | 运行环境 |
+| Flask | 3.1.3 | Web 框架 |
+| Flask-SQLAlchemy | 3.1.1 | ORM（基于 SQLAlchemy 2.x） |
+| Flask-CORS | 6.0.5 | 跨域支持 |
+| SQLite | — | 默认数据库，可通过配置切换 PostgreSQL / MySQL 等 |
 
-  项目结构
+## 项目结构
 
-  bt-fit-backend/
-  ├── app/
-  │   ├── __init__.py      # 应用工厂 (create_app)
-  │   ├── config.py        # 多环境配置（dev/test/prod，SQLite 存放在 data/）
-  │   ├── extensions.py    # db, CORS 扩展实例
-  │   ├── models.py        # User 模型
-  │   ├── routes.py        # 蓝图路由（含 RESTful 用户 CRUD）
-  │   └── cli.py           # flask init-db 命令
-  ├── data/                # SQLite 数据库目录（自动创建）
-  ├── wsgi.py              # 入口：python wsgi.py
-  ├── requirements.txt     # flask 3.1.3 / flask-cors 6.0.5 / flask-sqlalchemy 3.1.1
-  ├── .env.example
-  └── .gitignore
+```
+bt-fit-backend/
+├── app/
+│   ├── __init__.py      # 应用工厂 create_app()，注册蓝图与扩展
+│   ├── config.py        # 多环境配置（development / testing / production）
+│   ├── extensions.py    # 扩展实例：db (SQLAlchemy)、CORS
+│   ├── models.py        # 数据模型：User
+│   ├── routes.py        # 蓝图路由：健康检查 + 用户 CRUD
+│   └── cli.py           # 自定义 CLI 命令：flask init-db
+├── data/                # SQLite 数据库文件目录（首次运行自动创建）
+├── wsgi.py              # 应用入口（开发服务器 / WSGI 部署均使用）
+├── requirements.txt     # Python 依赖清单
+├── .env.example         # 环境变量示例
+└── .gitignore
+```
 
-  已验证的端点
+## 环境准备
 
-  ┌────────────┬─────────────────┬────────────────────────────┐
+### 前置要求
 
-  ┌────────────┬─────────────────┬────────────────────────────┐
-  │    方法    │      路径       │            说明            │
-  ├────────────┼─────────────────┼────────────────────────────┤
-  │ GET        │ /health         │ 健康检查                   │
-  ├────────────┼─────────────────┼────────────────────────────┤
-  │ GET        │ /api/users      │ 用户列表                   │
-  ├────────────┼─────────────────┼────────────────────────────┤
-  │ POST       │ /api/users      │ 创建用户（含重复校验 409） │
-  ├────────────┼─────────────────┼────────────────────────────┤
-  │ GET/DELETE │ /api/users/<id> │ 查询/删除用户              │
-  └────────────┴─────────────────┴────────────────────────────┘
+- Python 3.14 或更高版本
+- 已存在的虚拟环境 `bt-fit`（位于 `D:\python3__env\bt-fit`）
 
-  使用方式
+### 激活虚拟环境
 
-  # 激活虚拟环境
-  D:\python3__env\bt-fit\Scripts\activate
+```bash
+# Git Bash / Linux / macOS
+source /d/python3__env/bt-fit/Scripts/activate
 
-  cd D:\code\bt-fit-backend
-  flask --app wsgi init-db     # 首次初始化数据库
-  python wsgi.py               # 启动开发服务器 (http://127.0.0.1:5000)
+# Windows CMD
+D:\python3__env\bt-fit\Scripts\activate.bat
 
-  切换环境可通过环境变量 FLASK_CONFIG=production，数据库可用 DATABASE_URL 覆盖（如 PostgreSQL）。测试服务器已停止，data/dev.db 中保留了一条测试数据（alice），可随时删除。
+# Windows PowerShell
+D:\python3__env\bt-fit\Scripts\Activate.ps1
+```
+
+### 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+## 快速开始
+
+```bash
+cd D:\code\bt-fit-backend
+
+# 1. 初始化数据库（创建 data/dev.db 及所有表）
+flask --app wsgi init-db
+
+# 2. 启动开发服务器
+python wsgi.py
+```
+
+服务默认运行在 <http://127.0.0.1:5000>，验证：
+
+```bash
+curl http://127.0.0.1:5000/health
+# {"status":"ok"}
+```
+
+> 开发模式默认开启 `DEBUG=True`，代码修改后自动重载。
+
+## 配置说明
+
+配置通过 `FLASK_CONFIG` 环境变量选择，默认为 `development`。三种环境对应 `app/config.py` 中的配置类：
+
+| 环境名 | 配置类 | DEBUG | 数据库 |
+|--------|--------|-------|--------|
+| `development`（默认） | `DevelopmentConfig` | ✅ | `data/dev.db` |
+| `testing` | `TestingConfig` | — | SQLite 内存库 |
+| `production` | `ProductionConfig` | ❌ | `data/app.db`（建议用 `DATABASE_URL` 覆盖） |
+
+### 环境变量
+
+参考 `.env.example`：
+
+| 变量 | 作用 | 默认值 |
+|------|------|--------|
+| `FLASK_CONFIG` | 选择环境：`development` / `testing` / `production` | `default`（即 development） |
+| `SECRET_KEY` | 会话签名密钥，生产环境必须修改 | `dev-secret-key-change-me` |
+| `DEV_DATABASE_URL` | 覆盖开发环境数据库 URI | `sqlite:///data/dev.db` |
+| `DATABASE_URL` | 覆盖生产环境数据库 URI | `sqlite:///data/app.db` |
+
+切换到 PostgreSQL 示例：
+
+```bash
+set FLASK_CONFIG=production
+set DATABASE_URL=postgresql://user:pass@localhost:5432/btfit
+python wsgi.py
+```
+
+## API 文档
+
+所有响应均为 JSON 格式。基础地址：`http://127.0.0.1:5000`
+
+### 根路径与健康检查
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/` | 欢迎信息 |
+| GET | `/health` | 健康检查 |
+
+```bash
+curl http://127.0.0.1:5000/
+# {"message":"Welcome to BT-Fit API","status":"running"}
+```
+
+### 用户管理
+
+#### 获取用户列表
+
+```
+GET /api/users
+```
+
+**响应 `200`：**
+
+```json
+[
+  {
+    "id": 1,
+    "username": "alice",
+    "email": "alice@example.com",
+    "created_at": "2026-08-17T13:48:46"
+  }
+]
+```
+
+#### 创建用户
+
+```
+POST /api/users
+Content-Type: application/json
+```
+
+**请求体：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `username` | string | ✅ | 用户名，唯一 |
+| `email` | string | ✅ | 邮箱，唯一 |
+
+```bash
+curl -X POST http://127.0.0.1:5000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"username":"bob","email":"bob@example.com"}'
+```
+
+**响应 `201`：** 返回创建的用户对象。
+
+**错误响应：**
+
+- `400` — `username` 或 `email` 缺失 / 为空
+- `409` — 用户名或邮箱已存在
+
+#### 查询单个用户
+
+```
+GET /api/users/<id>
+```
+
+**响应 `200`：** 用户对象；用户不存在时返回 `404`。
+
+#### 删除用户
+
+```
+DELETE /api/users/<id>
+```
+
+**响应 `204`：** 无内容；用户不存在时返回 `404`。
+
+## 数据模型
+
+### User（`users` 表）
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | Integer | 主键，自增 | 用户 ID |
+| `username` | String(80) | 唯一、非空、索引 | 用户名 |
+| `email` | String(120) | 唯一、非空 | 邮箱 |
+| `created_at` | DateTime | 默认当前时间 | 创建时间 |
+
+## CLI 命令
+
+| 命令 | 说明 |
+|------|------|
+| `flask --app wsgi init-db` | 创建所有数据库表（幂等，已有表不会重建） |
+
+## 生产部署建议
+
+开发服务器（`python wsgi.py`）不适用于生产环境，建议使用 WSGI 服务器：
+
+```bash
+# waitress（Windows 友好）
+pip install waitress
+waitress-serve --host 0.0.0.0 --port 8000 wsgi:app
+
+# 或 Linux 下的 gunicorn
+pip install gunicorn
+gunicorn -w 4 -b 0.0.0.0:8000 wsgi:app
+```
+
+部署前检查清单：
+
+- [ ] 设置强随机的 `SECRET_KEY`
+- [ ] 通过 `DATABASE_URL` 指向生产级数据库（如 PostgreSQL）
+- [ ] 确认 CORS 策略（当前默认允许所有来源，生产环境应在 `app/__init__.py` 中限制 `origins`）
+
+## 常见问题
+
+**`sqlite3.OperationalError: unable to open database file`**
+`data/` 目录缺失。当前版本会在导入配置时自动创建目录，若仍出现请手动创建 `data/` 目录。
+
+**修改了模型后如何更新表结构？**
+`init-db` 只创建缺失的表，不会迁移已有表。建议引入 [Flask-Migrate](https://flask-migrate.readthedocs.io/)（Alembic）管理 schema 变更：
+
+```bash
+pip install flask-migrate
+flask --app wsgi db init
+flask --app wsgi db migrate -m "your message"
+flask --app wsgi db upgrade
+```

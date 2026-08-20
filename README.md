@@ -137,7 +137,6 @@ GET /api/users
   {
     "id": 1,
     "username": "alice",
-    "email": "alice@example.com",
     "created_at": "2026-08-17T13:48:46"
   }
 ]
@@ -155,20 +154,20 @@ Content-Type: application/json
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `username` | string | ✅ | 用户名，唯一 |
-| `email` | string | ✅ | 邮箱，唯一 |
+| `password` | string | ✅ | 密码（存储时使用 `generate_password_hash` 哈希，不会明文保存） |
 
 ```bash
 curl -X POST http://127.0.0.1:5000/api/users \
   -H "Content-Type: application/json" \
-  -d '{"username":"bob","email":"bob@example.com"}'
+  -d '{"username":"bob","password":"secret123"}'
 ```
 
 **响应 `201`：** 返回创建的用户对象。
 
 **错误响应：**
 
-- `400` — `username` 或 `email` 缺失 / 为空
-- `409` — 用户名或邮箱已存在
+- `400` — `username` 或 `password` 缺失 / 为空
+- `409` — 用户名已存在
 
 #### 查询单个用户
 
@@ -194,7 +193,7 @@ DELETE /api/users/<id>
 |------|------|------|------|
 | `id` | Integer | 主键，自增 | 用户 ID |
 | `username` | String(80) | 唯一、非空、索引 | 用户名 |
-| `email` | String(120) | 唯一、非空 | 邮箱 |
+| `password` | String(255) | 非空 | 密码哈希（`werkzeug` `generate_password_hash`，默认 scrypt） |
 | `created_at` | DateTime | 默认当前时间 | 创建时间 |
 
 ## CLI 命令

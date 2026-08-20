@@ -26,17 +26,16 @@ def list_users():
 def create_user():
     data = request.get_json(silent=True) or {}
     username = data.get("username", "").strip()
-    email = data.get("email", "").strip()
+    password = data.get("password", "").strip()
 
-    if not username or not email:
-        return jsonify({"error": "username 和 email 为必填项"}), 400
+    if not username or not password:
+        return jsonify({"error": "username 和 password 为必填项"}), 400
 
-    if User.query.filter(
-        (User.username == username) | (User.email == email)
-    ).first():
-        return jsonify({"error": "用户名或邮箱已存在"}), 409
+    if User.query.filter_by(username=username).first():
+        return jsonify({"error": "用户名已存在"}), 409
 
-    user = User(username=username, email=email)
+    user = User(username=username)
+    user.set_password(password)
     db.session.add(user)
     db.session.commit()
     return jsonify(user.to_dict()), 201

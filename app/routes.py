@@ -41,6 +41,23 @@ def create_user():
     return jsonify(user.to_dict()), 201
 
 
+@main_bp.post("/api/login")
+def login():
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+
+    if not username or not password:
+        return jsonify({"error": "username 和 password 为必填项"}), 400
+
+    user = User.query.filter_by(username=username).first()
+    if user is None or not user.check_password(password):
+        return jsonify({"error": "用户名或密码错误"}), 401
+
+    token = user.generate_token()
+    return jsonify({"token": token, "user": user.to_dict()})
+
+
 @main_bp.get("/api/users/<int:user_id>")
 def get_user(user_id):
     user = db.get_or_404(User, user_id)

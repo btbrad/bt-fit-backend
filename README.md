@@ -10,6 +10,7 @@
 | Flask | 3.1.3 | Web 框架 |
 | Flask-SQLAlchemy | 3.1.1 | ORM（基于 SQLAlchemy 2.x） |
 | Flask-CORS | 6.0.5 | 跨域支持 |
+| PyJWT | 2.13.0 | 登录 token 生成与校验（JWT / HS256） |
 | SQLite | — | 默认数据库，可通过配置切换 PostgreSQL / MySQL 等 |
 
 ## 项目结构
@@ -168,6 +169,42 @@ curl -X POST http://127.0.0.1:5000/api/users \
 
 - `400` — `username` 或 `password` 缺失 / 为空
 - `409` — 用户名已存在
+
+#### 用户登录
+
+```
+POST /api/login
+Content-Type: application/json
+```
+
+**请求体：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `username` | string | ✅ | 用户名 |
+| `password` | string | ✅ | 密码 |
+
+```bash
+curl -X POST http://127.0.0.1:5000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"alice","password":"secret123"}'
+```
+
+**响应 `200`：**
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "user": { "id": 1, "username": "alice", "created_at": "2026-08-17T13:48:46" }
+}
+```
+
+token 为 JWT（HS256），默认 1 小时有效。
+
+**错误响应：**
+
+- `400` — `username` 或 `password` 缺失 / 为空
+- `401` — 用户名或密码错误（用户不存在与密码错误返回相同提示，避免枚举用户名）
 
 #### 查询单个用户
 

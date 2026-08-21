@@ -41,6 +41,29 @@ def create_user():
     return jsonify(user.to_dict()), 201
 
 
+@main_bp.post("/api/register")
+def register():
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    confirm_password = data.get("confirm_password", "")
+
+    if not username or not password or not confirm_password:
+        return jsonify({"error": "username、password 和 confirm_password 为必填项"}), 400
+
+    if password != confirm_password:
+        return jsonify({"error": "两次输入的密码不一致"}), 400
+
+    if User.query.filter_by(username=username).first():
+        return jsonify({"error": "用户名已存在"}), 409
+
+    user = User(username=username)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+    return jsonify(user.to_dict()), 201
+
+
 @main_bp.post("/api/login")
 def login():
     data = request.get_json(silent=True) or {}

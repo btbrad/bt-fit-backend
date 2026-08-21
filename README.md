@@ -21,8 +21,8 @@ bt-fit-backend/
 │   ├── __init__.py      # 应用工厂 create_app()，注册蓝图与扩展
 │   ├── config.py        # 多环境配置（development / testing / production）
 │   ├── extensions.py    # 扩展实例：db (SQLAlchemy)、CORS
-│   ├── models.py        # 数据模型：User
-│   ├── routes.py        # 蓝图路由：健康检查 + 用户 CRUD
+│   ├── models.py        # 数据模型：User、WeightRecord
+│   ├── routes.py        # 蓝图路由：健康检查 + 用户 CRUD + 体重记录
 │   └── cli.py           # 自定义 CLI 命令：flask init-db
 ├── data/                # SQLite 数据库文件目录（首次运行自动创建）
 ├── wsgi.py              # 应用入口（开发服务器 / WSGI 部署均使用）
@@ -222,6 +222,72 @@ DELETE /api/users/<id>
 
 **响应 `204`：** 无内容；用户不存在时返回 `404`。
 
+### 体重记录
+
+> 以下接口均需登录，请求头携带 `Authorization: Bearer <token>`（登录接口返回的 JWT）。未携带或 token 无效返回 `401`；只能操作自己的记录。
+
+#### 记录体重
+
+```
+POST /api/weight-records
+Content-Type: application/json
+```
+
+**请求体：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `weight` | number | ✅ | 体重（kg），需在 20 ~ 300 之间 |
+| `recorded_at` | string | ❌ | 测量时间，ISO 格式 `YYYY-MM-DDTHH:MM:SS`，缺省为当前时间（支持补录） |
+| `note` | string | ❌ | 备注，最长 200 字符 |
+
+```bash
+curl -X POST http://127.0.0.1:5000/api/weight-records \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"weight": 75.5, "note": "晨起空腹"}'
+```
+
+**响应 `201`：**
+
+```json
+{
+  "id": 1,
+  "user_id": 1,
+  "weight": 75.5,
+  "recorded_at": "2026-08-21T13:38:11",
+  "note": "晨起空腹",
+  "created_at": "2026-08-21T13:38:11"
+}
+```
+
+#### 查询体重记录
+
+```
+GET /api/weight-records?page=1&per_page=20&start=2026-08-01&end=2026-08-21
+```
+
+查询参数均可选：`page` / `per_page`（默认 20，最大 100）分页；`start` / `end`（ISO 日期或日期时间）筛选测量时间范围。结果按 `recorded_at` 倒序。
+
+**响应 `200`：**
+
+```json
+{
+  "items": [ { "id": 2, "user_id": 1, "weight": 76.2, "recorded_at": "2026-08-20T08:00:00", "note": null, "created_at": "2026-08-21T13:38:11" } ],
+  "total": 1,
+  "page": 1,
+  "per_page": 20
+}
+```
+
+#### 删除体重记录
+
+```
+DELETE /api/weight-records/<id>
+```
+
+**响应 `204`：** 无内容；记录不存在或不属于当前用户返回 `404`。
+
 ## 数据模型
 
 ### User（`users` 表）
@@ -232,6 +298,19 @@ DELETE /api/users/<id>
 | `username` | String(80) | 唯一、非空、索引 | 用户名 |
 | `password` | String(255) | 非空 | 密码哈希（`werkzeug` `generate_password_hash`，默认 scrypt） |
 | `created_at` | DateTime | 默认当前时间 | 创建时间 |
+
+### WeightRecord（`weight_records` 表）
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | Integer | 主键，自增 | 记录 ID |
+| `user_id` | Integer | 外键 → `users.id`，`ON DELETE CASCADE`，非空 | 所属用户 |
+| `weight` | Numeric(5,2) | 非空 | 体重（kg），范围校验 20 ~ 300 |
+| `recorded_at` | DateTime | 非空 | 测量时间（支持补录历史记录） |
+| `note` | String(200) | 可空 | 备注，如"晨起空腹" |
+| `created_at` | DateTime | 默认当前时间 | 入库时间 |
+
+索引：`(user_id, recorded_at)` 复合索引，覆盖"按用户查时间线"的查询。
 
 ## CLI 命令
 

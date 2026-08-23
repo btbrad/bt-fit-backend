@@ -111,6 +111,29 @@ python wsgi.py
 
 所有响应均为 JSON 格式。基础地址：`http://127.0.0.1:5000`
 
+### 统一响应格式
+
+每个接口的响应体均包含 `code`、`message`、`data` 三个字段：
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": { }
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `code` | 业务码。`200` 表示请求成功；非 `200` 表示业务失败（如 `400` 参数错误、`404` 不存在、`409` 重复） |
+| `message` | 提示信息，成功为 `success`，失败为具体错误原因 |
+| `data` | 业务数据，失败时为 `null` |
+
+HTTP 状态码约定：
+
+- **`200`** — 正常处理完毕（含业务失败，此时看 body 中的 `code`）。登录接口的用户名/密码错误属于业务校验失败，返回 HTTP 200 + 非 200 的 `code`。
+- **`401`** — 仅表示无权限或权限过期：请求头缺少 token、token 无效或已过期。
+
 ### 根路径与健康检查
 
 | 方法 | 路径 | 说明 |
@@ -120,7 +143,7 @@ python wsgi.py
 
 ```bash
 curl http://127.0.0.1:5000/
-# {"message":"Welcome to BT-Fit API","status":"running"}
+# {"code":200,"message":"success","data":{"message":"Welcome to BT-Fit API","status":"running"}}
 ```
 
 ### 用户管理
@@ -131,16 +154,20 @@ curl http://127.0.0.1:5000/
 GET /api/users
 ```
 
-**响应 `200`：**
+**响应 `200`（`code: 200`）：**
 
 ```json
-[
-  {
-    "id": 1,
-    "username": "alice",
-    "created_at": "2026-08-17T13:48:46"
-  }
-]
+{
+  "code": 200,
+  "message": "success",
+  "data": [
+    {
+      "id": 1,
+      "username": "alice",
+      "created_at": "2026-08-17T13:48:46"
+    }
+  ]
+}
 ```
 
 #### 创建用户
@@ -163,12 +190,12 @@ curl -X POST http://127.0.0.1:5000/api/users \
   -d '{"username":"bob","password":"secret123"}'
 ```
 
-**响应 `201`：** 返回创建的用户对象。
+**响应 `200`（`code: 200`）：** `data` 为创建的用户对象。
 
-**错误响应：**
+**错误响应（HTTP 200，`code` 非 200）：**
 
-- `400` — `username` 或 `password` 缺失 / 为空
-- `409` — 用户名已存在
+- `code: 400` — `username` 或 `password` 缺失 / 为空
+- `code: 409` — 用户名已存在
 
 #### 用户登录
 
@@ -190,21 +217,25 @@ curl -X POST http://127.0.0.1:5000/api/login \
   -d '{"username":"alice","password":"secret123"}'
 ```
 
-**响应 `200`：**
+**响应 `200`（`code: 200`）：**
 
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIs...",
-  "user": { "id": 1, "username": "alice", "created_at": "2026-08-17T13:48:46" }
+  "code": 200,
+  "message": "success",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "user": { "id": 1, "username": "alice", "created_at": "2026-08-17T13:48:46" }
+  }
 }
 ```
 
 token 为 JWT（HS256），默认 1 小时有效。
 
-**错误响应：**
+**错误响应（HTTP 200，`code` 非 200）：**
 
-- `400` — `username` 或 `password` 缺失 / 为空
-- `401` — 用户名或密码错误（用户不存在与密码错误返回相同提示，避免枚举用户名）
+- `code: 400` — `username` 或 `password` 缺失 / 为空
+- `code: 400` — 用户名或密码错误（用户不存在与密码错误返回相同提示，避免枚举用户名；登录不涉及权限校验，因此**不返回 HTTP 401**）
 
 #### 查询单个用户
 
@@ -212,7 +243,7 @@ token 为 JWT（HS256），默认 1 小时有效。
 GET /api/users/<id>
 ```
 
-**响应 `200`：** 用户对象；用户不存在时返回 `404`。
+**响应 `200`：** `data` 为用户对象；用户不存在时返回 `code: 404`。
 
 #### 删除用户
 
@@ -220,11 +251,11 @@ GET /api/users/<id>
 DELETE /api/users/<id>
 ```
 
-**响应 `204`：** 无内容；用户不存在时返回 `404`。
+**响应 `200`（`code: 200`）：** 删除成功；用户不存在时返回 `code: 404`。
 
 ### 体重记录
 
-> 以下接口均需登录，请求头携带 `Authorization: Bearer <token>`（登录接口返回的 JWT）。未携带或 token 无效返回 `401`；只能操作自己的记录。
+> 以下接口均需登录，请求头携带 `Authorization: Bearer <token>`（登录接口返回的 JWT）。未携带或 token 无效 / 过期返回 **HTTP `401`**；只能操作自己的记录。
 
 #### 记录体重
 
@@ -248,16 +279,20 @@ curl -X POST http://127.0.0.1:5000/api/weight-records \
   -d '{"weight": 75.5, "note": "晨起空腹"}'
 ```
 
-**响应 `201`：**
+**响应 `200`（`code: 200`）：**
 
 ```json
 {
-  "id": 1,
-  "user_id": 1,
-  "weight": 75.5,
-  "recorded_at": "2026-08-21T13:38:11",
-  "note": "晨起空腹",
-  "created_at": "2026-08-21T13:38:11"
+  "code": 200,
+  "message": "success",
+  "data": {
+    "id": 1,
+    "user_id": 1,
+    "weight": 75.5,
+    "recorded_at": "2026-08-21T13:38:11",
+    "note": "晨起空腹",
+    "created_at": "2026-08-21T13:38:11"
+  }
 }
 ```
 
@@ -269,14 +304,18 @@ GET /api/weight-records?page=1&per_page=20&start=2026-08-01&end=2026-08-21
 
 查询参数均可选：`page` / `per_page`（默认 20，最大 100）分页；`start` / `end`（ISO 日期或日期时间）筛选测量时间范围。结果按 `recorded_at` 倒序。
 
-**响应 `200`：**
+**响应 `200`（`code: 200`）：**
 
 ```json
 {
-  "items": [ { "id": 2, "user_id": 1, "weight": 76.2, "recorded_at": "2026-08-20T08:00:00", "note": null, "created_at": "2026-08-21T13:38:11" } ],
-  "total": 1,
-  "page": 1,
-  "per_page": 20
+  "code": 200,
+  "message": "success",
+  "data": {
+    "items": [ { "id": 2, "user_id": 1, "weight": 76.2, "recorded_at": "2026-08-20T08:00:00", "note": null, "created_at": "2026-08-21T13:38:11" } ],
+    "total": 1,
+    "page": 1,
+    "per_page": 20
+  }
 }
 ```
 
@@ -286,7 +325,7 @@ GET /api/weight-records?page=1&per_page=20&start=2026-08-01&end=2026-08-21
 DELETE /api/weight-records/<id>
 ```
 
-**响应 `204`：** 无内容；记录不存在或不属于当前用户返回 `404`。
+**响应 `200`（`code: 200`）：** 删除成功；记录不存在或不属于当前用户返回 `code: 404`。
 
 ## 数据模型
 

@@ -138,16 +138,25 @@ def create_weight_record():
     if not (20 <= weight <= 300):
         return fail(400, "weight 需在 20 ~ 300 kg 之间")
 
-    # recorded_at 可选，支持补录；格式 YYYY-MM-DDTHH:MM:SS
+    # recorded_at 可选，支持补录；格式 YYYY-MM-DD，缺省为今天
     if recorded_at:
         try:
-            recorded_at = datetime.fromisoformat(recorded_at)
+            recorded_at = datetime.strptime(recorded_at, "%Y-%m-%d")
         except (TypeError, ValueError):
-            return fail(400, "recorded_at 格式应为 YYYY-MM-DDTHH:MM:SS")
+            return fail(400, "recorded_at 格式应为 YYYY-MM-DD")
+    else:
+        recorded_at = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    record = WeightRecord(user_id=g.user.id, weight=weight, note=note or None)
-    if recorded_at:
-        record.recorded_at = recorded_at
+    # 同一天已有记录则直接覆盖 weight 和 note
+    record = WeightRecord.query.filter(
+        WeightRecord.user_id == g.user.id,
+        db.func.date(WeightRecord.recorded_at) == recorded_at.date(),
+    ).first()
+
+    if record is None:
+        record = WeightRecord(user_id=g.user.id, recorded_at=recorded_at)
+    record.weight = weight
+    record.note = note or None
     db.session.add(record)
     db.session.commit()
     return ok(record.to_dict())

@@ -450,8 +450,10 @@ cd /var/www/bt-fit/bt-fit-backend
 git pull                                                  # 1. 拉最新代码
 /var/www/bt-fit/bt-fit/bin/pip install -r requirements.txt    # 2. 依赖有变动时
 /var/www/bt-fit/bt-fit/bin/flask --app wsgi init-db           # 3. 模型有变动时（只补建缺失的表）
-sudo systemctl restart bt-fit                             # 4. 重启生效
-curl http://127.0.0.1/health                              # 5. 验证 {"status":"ok"}
+sudo chown -R www-data:www-data data                       # 4. init-db 用非 www-data 用户跑过后必须执行，
+                                                           #    否则服务用户写不了库，所有写接口 500
+sudo systemctl restart bt-fit                             # 5. 重启生效
+curl http://127.0.0.1/health                              # 6. 验证 {"status":"ok"}
 ```
 
 ### Nginx

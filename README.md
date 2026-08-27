@@ -90,14 +90,26 @@ curl http://127.0.0.1:5000/health
 
 ### 环境变量
 
-参考 `.env.example`：
+配置通过项目根目录的 `.env` 文件加载（由 `python-dotenv` 提供，`wsgi.py` 启动时自动读取，优先级低于已存在的系统环境变量）。参考 `.env.example`：
 
 | 变量 | 作用 | 默认值 |
 |------|------|--------|
 | `FLASK_CONFIG` | 选择环境：`development` / `testing` / `production` | `default`（即 development） |
-| `SECRET_KEY` | 会话签名密钥，生产环境必须修改 | `dev-secret-key-change-me` |
-| `DEV_DATABASE_URL` | 覆盖开发环境数据库 URI | `sqlite:///data/dev.db` |
+| `SECRET_KEY` | JWT / 会话签名密钥，生产环境必须为强随机值 | `dev-secret-key-change-me` |
 | `DATABASE_URL` | 覆盖生产环境数据库 URI | `sqlite:///data/app.db` |
+| `DEV_DATABASE_URL` | 覆盖开发环境数据库 URI | `sqlite:///data/dev.db` |
+| `CORS_ORIGINS` | 允许跨域的前端来源，逗号分隔多个；`*` 为全部放行 | 开发环境默认 `*`；**生产环境默认不放行任何跨域** |
+| `PORT` | 开发服务器端口（仅 `python wsgi.py` 生效） | `5000` |
+
+首次部署时复制模板生成本地配置：
+
+```bash
+cp .env.example .env
+# 生成强随机密钥填入 SECRET_KEY
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+`.env` 已加入 `.gitignore`，不会提交到仓库；上传服务器时可单独拷贝（scp）到服务器项目根目录。
 
 切换到 PostgreSQL 示例：
 
@@ -357,25 +369,60 @@ DELETE /api/weight-records/<id>
 |------|------|
 | `flask --app wsgi init-db` | 创建所有数据库表（幂等，已有表不会重建） |
 
-## 生产部署建议
+## 生产部署
 
-开发服务器（`python wsgi.py`）不适用于生产环境，建议使用 WSGI 服务器：
+开发服务器（`python wsgi.py`）不适用于生产环境。`requirements.txt` 已包含 gunicorn（Linux），Windows 本地调试可用 waitress：
 
 ```bash
-# waitress（Windows 友好）
-pip install waitress
-waitress-serve --host 0.0.0.0 --port 8000 wsgi:app
+# Linux（gunicorn，已包含在 requirements.txt）
+gunicorn -w 4 -b 127.0.0.1:8000 wsgi:app
 
-# 或 Linux 下的 gunicorn
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:8000 wsgi:app
+# Windows 本地（waitress）
+pip install waitress
+waitress-serve --host 127.0.0.1 --port 8000 wsgi:app
 ```
 
-部署前检查清单：
+### 服务器部署步骤（Linux）
 
-- [ ] 设置强随机的 `SECRET_KEY`
-- [ ] 通过 `DATABASE_URL` 指向生产级数据库（如 PostgreSQL）
-- [ ] 确认 CORS 策略（当前默认允许所有来源，生产环境应在 `app/__init__.py` 中限制 `origins`）
+`deploy/` 目录下已提供 systemd 和 Nginx 配置模板：
+
+```bash
+# 1. 拉取代码
+git clone <仓库地址> /opt/bt-fit-backend && cd /opt/bt-fit-backend
+
+# 2. 虚拟环境 + 依赖
+python3 -m venv venv
+./venv/bin/pip install -r requirements.txt
+
+# 3. 配置环境（生成 .env，填入强随机 SECRET_KEY 与 CORS_ORIGINS）
+cp .env.example .env
+python -c "import secrets; print(secrets.token_hex(32))"
+
+# 4. 初始化数据库
+./venv/bin/flask --app wsgi init-db
+
+# 5. 安装 systemd 服务（先按实际路径修改 deploy/bt-fit.service 中的 /opt/bt-fit-backend）
+sudo cp deploy/bt-fit.service /etc/systemd/system/bt-fit.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now bt-fit
+journalctl -u bt-fit -f          # 查看日志
+
+# 6. Nginx 反代 + HTTPS（将 deploy/nginx.conf 中域名替换为实际域名）
+sudo cp deploy/nginx.conf /etc/nginx/sites-available/bt-fit
+sudo ln -s /etc/nginx/sites-available/bt-fit /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d api.your-domain.com
+```
+
+gunicorn 只绑定 `127.0.0.1:8000`，由 Nginx 对外提供 80/443；防火墙只需开放 80/443。
+
+### 部署前检查清单
+
+- [x] 设置强随机的 `SECRET_KEY`（写入服务器 `.env`）
+- [x] CORS 已默认收紧：生产环境需在 `.env` 显式配置 `CORS_ORIGINS`，否则不放行任何跨域来源
+- [ ] 通过 `DATABASE_URL` 指向生产级数据库（如 PostgreSQL），多 worker 并发下比 SQLite 更稳
+- [ ] SQLite 备份：cron 定时备份 `data/app.db`
+- [ ] 验证：`curl https://api.your-domain.com/health` 返回 `{"status":"ok"}`
 
 ## 常见问题
 

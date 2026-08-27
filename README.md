@@ -422,7 +422,86 @@ gunicorn 只绑定 `127.0.0.1:8000`，由 Nginx 对外提供 80/443；防火墙�
 - [x] CORS 已默认收紧：生产环境需在 `.env` 显式配置 `CORS_ORIGINS`，否则不放行任何跨域来源
 - [ ] 通过 `DATABASE_URL` 指向生产级数据库（如 PostgreSQL），多 worker 并发下比 SQLite 更稳
 - [ ] SQLite 备份：cron 定时备份 `data/app.db`
-- [ ] 验证：`curl https://api.your-domain.com/health` 返回 `{"status":"ok"}`
+- [ ] 验证：`curl http://<服务器IP>/health` 返回 `{"status":"ok"}`
+
+## 服务器运维常用命令
+
+以下命令在**服务器上**执行。路径按当前生产环境实际部署标注（项目 `/var/www/bt-fit/bt-fit-backend`，虚拟环境 `/var/www/bt-fit/bt-fit`，应用 systemd 服务名 `bt-fit`）；若部署在其他目录请相应替换。
+
+### 应用服务（bt-fit / gunicorn）
+
+```bash
+sudo systemctl status bt-fit     # 运行状态（active 与否、worker 数、内存占用）
+sudo systemctl restart bt-fit    # 重启应用
+sudo systemctl stop bt-fit       # 停止应用
+
+# 实时看日志（Ctrl+C 退出）
+journalctl -u bt-fit -f
+# 最近 200 行日志
+journalctl -u bt-fit -n 200 --no-pager
+# 只看今天的报错
+journalctl -u bt-fit --since today -p err --no-pager
+```
+
+### 发布更新（最常用流程）
+
+```bash
+cd /var/www/bt-fit/bt-fit-backend
+git pull                                                  # 1. 拉最新代码
+/var/www/bt-fit/bt-fit/bin/pip install -r requirements.txt    # 2. 依赖有变动时
+/var/www/bt-fit/bt-fit/bin/flask --app wsgi init-db           # 3. 模型有变动时（只补建缺失的表）
+sudo systemctl restart bt-fit                             # 4. 重启生效
+curl http://127.0.0.1/health                              # 5. 验证 {"status":"ok"}
+```
+
+### Nginx
+
+```bash
+sudo nginx -t                                # 改完配置先做语法检查
+sudo systemctl reload nginx                  # 平滑重载（不断开现有连接）
+sudo systemctl restart nginx                 # 重启
+sudo tail -n 50 /var/log/nginx/error.log     # 502/504 排查
+sudo tail -n 50 /var/log/nginx/access.log    # 查看请求来源、路径、状态码
+```
+
+### 数据库备份与恢复（SQLite）
+
+```bash
+# 手动备份（.backup 为在线备份接口，比直接 cp 安全；-readonly 以只读打开源库，避免备份进程影响源库；需已安装 sqlite3）
+sqlite3 -readonly /var/www/bt-fit/bt-fit-backend/data/app.db ".backup '/bt/backup/app-$(date +%F).db'"
+
+# 恢复：停应用 → 覆盖库文件 → 起应用
+sudo systemctl stop bt-fit
+sudo cp /bt/backup/app-2026-08-27.db /var/www/bt-fit/bt-fit-backend/data/app.db
+sudo chown www-data:www-data /var/www/bt-fit/bt-fit-backend/data/app.db
+sudo systemctl start bt-fit
+
+# 每天凌晨 3 点自动备份（crontab -e 添加，% 在 crontab 中需转义）
+0 3 * * * sqlite3 -readonly /var/www/bt-fit/bt-fit-backend/data/app.db ".backup '/bt/backup/app-$(date +\%F).db'"
+# 顺带清理 30 天前的旧备份，防止磁盘占满
+10 3 * * * find /bt/backup -name "app-*.db" -mtime +30 -delete
+```
+
+设置步骤：① `sudo apt install -y sqlite3` 并 `sudo mkdir -p /bt/backup && sudo chown bt:bt /bt/backup`；② 手动执行一次上面的 `.backup` 命令确认成功；③ `crontab -e` 添加两行定时任务；④ `crontab -l` 确认已写入。注意备份与数据库同盘，重要数据应定期 `scp` 拉到本地异地保存（`scp bt@121.199.20.161:/bt/backup/app-2026-08-27.db D:/backup/`）。
+
+### 资源与端口
+
+```bash
+df -h                # 磁盘剩余空间
+free -h              # 内存
+ss -tlnp             # 端口监听：应看到 :80(nginx) 和 127.0.0.1:8000(gunicorn)
+ps aux | grep gunicorn    # worker 进程是否都在
+```
+
+### 故障速查
+
+| 现象 | 排查顺序 |
+|------|----------|
+| 访问 502 | ① `systemctl status bt-fit` 是否 active → ② `journalctl -u bt-fit -n 50` 看崩溃原因 → ③ `/var/log/nginx/error.log` |
+| 访问 404（Nginx 页面） | `ls /etc/nginx/sites-enabled/`——只应有 `bt-fit`；Ubuntu 的 `default` 站点回来了会抢占流量，且与 `default_server` 冲突导致 nginx 起不来 |
+| 连接超时 / 打不开 | 云控制台**安全组**是否放行 80/443 端口 |
+| 改了配置没生效 | `sudo nginx -t && sudo systemctl reload nginx`，确认 reload 成功执行过 |
+| 服务器重启后服务没了 | `systemctl is-enabled bt-fit nginx` 应均为 `enabled` |
 
 ## 常见问题
 

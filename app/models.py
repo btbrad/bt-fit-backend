@@ -24,8 +24,8 @@ class User(db.Model):
         """校验明文密码是否与存储的哈希匹配"""
         return check_password_hash(self.password, password)
 
-    def generate_token(self, expires_in=3600):
-        """生成 JWT token，默认 1 小时有效"""
+    def generate_token(self, expires_in=3600 * 24 * 7):
+        """生成 JWT token，默认7天有效"""
         now = datetime.now(timezone.utc)
         payload = {
             "sub": str(self.id),
@@ -33,9 +33,7 @@ class User(db.Model):
             "iat": now,
             "exp": now + timedelta(seconds=expires_in),
         }
-        return jwt.encode(
-            payload, current_app.config["SECRET_KEY"], algorithm="HS256"
-        )
+        return jwt.encode(payload, current_app.config["SECRET_KEY"], algorithm="HS256")
 
     @staticmethod
     def verify_token(token):
@@ -74,7 +72,9 @@ class WeightRecord(db.Model):
         nullable=False,
     )
     weight = db.Column(db.Numeric(5, 2), nullable=False)  # 单位: kg
-    recorded_at = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
+    recorded_at = db.Column(
+        db.DateTime, nullable=False, default=db.func.current_timestamp()
+    )
     note = db.Column(db.String(200))  # 备注，如"晨起空腹"
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 

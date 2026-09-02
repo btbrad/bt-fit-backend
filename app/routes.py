@@ -119,6 +119,14 @@ def login():
     return ok({"token": token, "user": user.to_dict()})
 
 
+@main_bp.post("/api/logout")
+@auth_required
+def logout():
+    # JWT 无状态，服务端不保存会话：校验 token 有效后直接返回成功，
+    # 由客户端删除本地 token 完成退出登录
+    return ok()
+
+
 @main_bp.post("/api/weight-records")
 @auth_required
 def create_weight_record():
@@ -172,9 +180,13 @@ def list_weight_records():
     end = request.args.get("end")
     try:
         if start:
-            query = query.filter(WeightRecord.recorded_at >= datetime.fromisoformat(start))
+            query = query.filter(
+                WeightRecord.recorded_at >= datetime.fromisoformat(start)
+            )
         if end:
-            query = query.filter(WeightRecord.recorded_at <= datetime.fromisoformat(end))
+            query = query.filter(
+                WeightRecord.recorded_at <= datetime.fromisoformat(end)
+            )
     except ValueError:
         return fail(400, "start/end 格式应为 YYYY-MM-DD 或 YYYY-MM-DDTHH:MM:SS")
 

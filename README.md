@@ -249,6 +249,20 @@ token 为 JWT（HS256），默认 1 小时有效。
 - `code: 400` — `username` 或 `password` 缺失 / 为空
 - `code: 400` — 用户名或密码错误（用户不存在与密码错误返回相同提示，避免枚举用户名；登录不涉及权限校验，因此**不返回 HTTP 401**）
 
+#### 退出登录
+
+```
+POST /api/logout
+```
+
+需携带 `Authorization: Bearer <token>`。JWT 无状态，服务端校验 token 有效后直接返回成功，由客户端删除本地 token 完成退出登录；未携带或 token 无效 / 过期返回 HTTP `401`。
+
+```bash
+curl -X POST http://127.0.0.1:5000/api/logout \
+  -H "Authorization: Bearer <token>"
+# {"code":200,"message":"success","data":null}
+```
+
 #### 查询单个用户
 
 ```

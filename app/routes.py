@@ -127,6 +127,31 @@ def logout():
     return ok()
 
 
+@main_bp.post("/api/change-password")
+@auth_required
+def change_password():
+    data = request.get_json(silent=True) or {}
+    old_password = data.get("old_password", "")
+    new_password = data.get("new_password", "")
+    confirm_password = data.get("confirm_password", "")
+
+    if not old_password or not new_password or not confirm_password:
+        return fail(400, "old_password、new_password 和 confirm_password 为必填项")
+
+    if not g.user.check_password(old_password):
+        return fail(400, "原密码错误")
+
+    if new_password != confirm_password:
+        return fail(400, "两次输入的新密码不一致")
+
+    if old_password == new_password:
+        return fail(400, "新密码不能与原密码相同")
+
+    g.user.set_password(new_password)
+    db.session.commit()
+    return ok()
+
+
 @main_bp.post("/api/weight-records")
 @auth_required
 def create_weight_record():

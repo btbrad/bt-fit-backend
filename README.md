@@ -263,6 +263,40 @@ curl -X POST http://127.0.0.1:5000/api/logout \
 # {"code":200,"message":"success","data":null}
 ```
 
+#### 修改密码
+
+```
+POST /api/change-password
+Content-Type: application/json
+```
+
+需携带 `Authorization: Bearer <token>`；未携带或 token 无效 / 过期返回 HTTP `401`。
+
+**请求体：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `old_password` | string | ✅ | 原密码 |
+| `new_password` | string | ✅ | 新密码 |
+| `confirm_password` | string | ✅ | 确认新密码，需与 `new_password` 一致 |
+
+```bash
+curl -X POST http://127.0.0.1:5000/api/change-password \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"old_password":"secret123","new_password":"newpass456","confirm_password":"newpass456"}'
+# {"code":200,"message":"success","data":null}
+```
+
+修改成功后当前 token 仍然有效，可直接用新密码继续使用；下次登录时使用新密码。
+
+**错误响应（HTTP 200，`code` 非 200）：**
+
+- `code: 400` — 字段缺失 / 为空
+- `code: 400` — 原密码错误
+- `code: 400` — 两次输入的新密码不一致
+- `code: 400` — 新密码与原密码相同
+
 #### 查询单个用户
 
 ```

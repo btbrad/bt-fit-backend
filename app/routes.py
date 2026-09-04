@@ -4,7 +4,7 @@ from functools import wraps
 from flask import Blueprint, g, jsonify, request
 
 from .extensions import db
-from .models import User, WeightRecord
+from .models import User, UserProfile, WeightRecord
 
 main_bp = Blueprint("main", __name__)
 
@@ -72,6 +72,7 @@ def create_user():
 
     user = User(username=username)
     user.set_password(password)
+    user.profile = UserProfile()
     db.session.add(user)
     db.session.commit()
     return ok(user.to_dict())
@@ -95,6 +96,7 @@ def register():
 
     user = User(username=username)
     user.set_password(password)
+    user.profile = UserProfile()
     db.session.add(user)
     db.session.commit()
     return ok(user.to_dict())
@@ -150,6 +152,86 @@ def change_password():
     g.user.set_password(new_password)
     db.session.commit()
     return ok()
+
+
+@main_bp.get("/api/profile")
+@auth_required
+def get_profile():
+    # 老用户可能没有档案行，读取时补建，保证客户端总能拿到统一结构
+    profile = g.user.profile
+    if profile is None:
+        profile = UserProfile(user_id=g.user.id)
+        db.session.add(profile)
+        db.session.commit()
+    return ok(profile.to_dict())
+
+
+@main_bp.put("/api/profile")
+@auth_required
+def update_profile():
+    data = request.get_json(silent=True) or {}
+    if not data:
+        return fail(400, "请求体不能为空")
+
+    profile = g.user.profile or UserProfile(user_id=g.user.id)
+    db.session.add(profile)
+
+    if "nickname" in data:
+        nickname = (data.get("nickname") or "").strip()
+        if len(nickname) > 50:
+            return fail(400, "nickname 长度不能超过 50 个字符")
+        profile.nickname = nickname or None
+
+    if "avatar" in data:
+        avatar = (data.get("avatar") or "").strip()
+        if len(avatar) > 255:
+            return fail(400, "avatar 长度不能超过 255 个字符")
+        profile.avatar = avatar or None
+
+    if "gender" in data:
+        gender = (data.get("gender") or "").strip()
+        if gender not in ("male", "female", "other"):
+            return fail(400, "gender 只能是 male / female / other")
+        profile.gender = gender
+
+    if "height" in data:
+        height = data.get("height")
+        if height is None:
+            profile.height = None
+        else:
+            try:
+                height = float(height)
+            except (TypeError, ValueError):
+                return fail(400, "height 必须是数字")
+            if not (50 <= height <= 250):
+                return fail(400, "height 需在 50 ~ 250 cm 之间")
+            profile.height = height
+
+    if "initial_weight" in data:
+        initial_weight = data.get("initial_weight")
+        if initial_weight is None:
+            profile.initial_weight = None
+        else:
+            try:
+                initial_weight = float(initial_weight)
+            except (TypeError, ValueError):
+                return fail(400, "initial_weight 必须是数字")
+            if not (20 <= initial_weight <= 300):
+                return fail(400, "initial_weight 需在 20 ~ 300 kg 之间")
+            profile.initial_weight = initial_weight
+
+    if "birthday" in data:
+        birthday = data.get("birthday")
+        if birthday:
+            try:
+                profile.birthday = datetime.strptime(birthday, "%Y-%m-%d").date()
+            except (TypeError, ValueError):
+                return fail(400, "birthday 格式应为 YYYY-MM-DD")
+        else:
+            profile.birthday = None
+
+    db.session.commit()
+    return ok(profile.to_dict())
 
 
 @main_bp.post("/api/weight-records")

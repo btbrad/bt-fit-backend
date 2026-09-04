@@ -59,6 +59,55 @@ class User(db.Model):
         return f"<User {self.username}>"
 
 
+class UserProfile(db.Model):
+    """用户信息表，与 users 一对一关联"""
+
+    __tablename__ = "user_profiles"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    nickname = db.Column(db.String(50))  # 昵称
+    avatar = db.Column(db.String(255))  # 头像 URL
+    gender = db.Column(db.String(10))  # male / female / other
+    height = db.Column(db.Numeric(5, 2))  # 身高，单位: cm
+    initial_weight = db.Column(db.Numeric(5, 2))  # 初始体重，单位: kg
+    birthday = db.Column(db.Date)  # 生日，可选
+    updated_at = db.Column(
+        db.DateTime,
+        default=db.func.current_timestamp(),
+        onupdate=db.func.current_timestamp(),
+    )
+
+    user = db.relationship(
+        "User",
+        backref=db.backref("profile", uselist=False, cascade="all, delete-orphan"),
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "nickname": self.nickname,
+            "avatar": self.avatar,
+            "gender": self.gender,
+            "height": float(self.height) if self.height is not None else None,
+            "initial_weight": (
+                float(self.initial_weight) if self.initial_weight is not None else None
+            ),
+            "birthday": self.birthday.isoformat() if self.birthday else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def __repr__(self):
+        return f"<UserProfile user_id={self.user_id}>"
+
+
 class WeightRecord(db.Model):
     __tablename__ = "weight_records"
     __table_args__ = (

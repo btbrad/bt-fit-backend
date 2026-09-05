@@ -497,12 +497,23 @@ journalctl -u bt-fit --since today -p err --no-pager
 cd /var/www/bt-fit/bt-fit-backend
 git pull                                                  # 1. 拉最新代码
 /var/www/bt-fit/bt-fit/bin/pip install -r requirements.txt    # 2. 依赖有变动时
-/var/www/bt-fit/bt-fit/bin/flask --app wsgi init-db           # 3. 模型有变动时（只补建缺失的表）
-sudo chown -R www-data:www-data data                       # 4. init-db 用非 www-data 用户跑过后必须执行，
-                                                           #    否则服务用户写不了库，所有写接口 500
-sudo systemctl restart bt-fit                             # 5. 重启生效
-curl http://127.0.0.1/health                              # 6. 验证 {"status":"ok"}
+sudo -u www-data /var/www/bt-fit/bt-fit/bin/flask --app wsgi init-db    # 3. 模型有变动时（只补建缺失的表）
+                                                           #    固定以 www-data 执行，与服务运行用户一致，
+                                                           #    避免库文件属主漂移（用 root 跑会再把属主改成 root）
+sudo systemctl restart bt-fit                             # 4. 重启生效
+curl http://127.0.0.1/health                              # 5. 验证 {"status":"ok"}
 ```
+
+**若 init-db 报 `sqlite3.OperationalError: attempt to write a readonly database`**：说明 `data/` 目录或 `data/app.db` 对 www-data 不可写（常见原因：历史上曾用 root 或其他用户建库/执行过 init-db，库文件属主被改成该用户）。注意 SQLite 写入还需要对 `data/` **目录**有写权限（创建 journal 文件），只改文件权限不够。修复：
+
+```bash
+sudo chown -R www-data:www-data /var/www/bt-fit/bt-fit-backend/data
+sudo chmod 775 /var/www/bt-fit/bt-fit-backend/data
+sudo chmod 664 /var/www/bt-fit/bt-fit-backend/data/app.db
+# 修复后重新以 www-data 执行建表（见上文第 3 步），再重启服务
+```
+
+权限说明：`664` 保留 world 读，bt 用户的每日备份 cron（`sqlite3 -readonly .backup`）不受影响。
 
 ### Nginx
 
